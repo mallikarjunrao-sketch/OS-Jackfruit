@@ -2,26 +2,43 @@
 
 ## 1. Team Information
 
-* Name: Mallikarjuna Rao R.V, SRN: PES1UG24AM155
-* Name: Kshitij Satish Shetty, SRN: PES1UG24AM143
+* Name: <Your Name>
+* SRN: <Your SRN>
 
 ---
 
-## 2. Build, Load, and Run Instructions
+# 2. Project Overview
 
-### Step 1: Build Project
+This project implements a lightweight multi-container runtime in C, along with a kernel module for memory monitoring and enforcement. The system allows multiple isolated containers to run concurrently under a single supervisor process.
+
+Key features:
+
+* Process isolation using Linux namespaces
+* Supervisor-based container lifecycle management
+* CLI interface using UNIX domain sockets
+* Kernel-space memory monitoring via ioctl
+* Scheduling experiments using CPU and I/O workloads
+* Proper cleanup with no zombie processes
+
+---
+
+# 3. Build, Load, and Run Instructions
+
+## Step 1: Build
 
 ```bash
 make
 ```
 
-### Step 2: Load Kernel Module
+---
+
+## Step 2: Load Kernel Module
 
 ```bash
 sudo insmod monitor.ko
 ```
 
-### Step 3: Verify Device
+Verify:
 
 ```bash
 ls -l /dev/container_monitor
@@ -29,7 +46,7 @@ ls -l /dev/container_monitor
 
 ---
 
-### Step 4: Start Supervisor
+## Step 3: Start Supervisor
 
 ```bash
 sudo ./engine supervisor ./rootfs-base
@@ -37,7 +54,7 @@ sudo ./engine supervisor ./rootfs-base
 
 ---
 
-### Step 5: Create Container Root Filesystems
+## Step 4: Prepare Root Filesystems
 
 ```bash
 cp -a ./rootfs-base ./rootfs-alpha
@@ -46,7 +63,7 @@ cp -a ./rootfs-base ./rootfs-beta
 
 ---
 
-### Step 6: Start Containers
+## Step 5: Start Containers
 
 ```bash
 sudo ./engine start alpha ./rootfs-alpha /bin/sh
@@ -55,7 +72,7 @@ sudo ./engine start beta ./rootfs-beta /bin/sh
 
 ---
 
-### Step 7: List Running Containers
+## Step 6: List Containers
 
 ```bash
 sudo ./engine ps
@@ -63,19 +80,13 @@ sudo ./engine ps
 
 ---
 
-### Step 8: Run Workloads
-
-Copy workloads:
+## Step 7: Run Workloads
 
 ```bash
 cp cpu_hog rootfs-alpha/
 cp io_pulse rootfs-beta/
 cp memory_hog rootfs-beta/
-```
 
-Run:
-
-```bash
 sudo ./engine start alpha ./rootfs-alpha /cpu_hog
 sudo ./engine start beta ./rootfs-beta /io_pulse
 sudo ./engine start gamma ./rootfs-beta /memory_hog
@@ -83,7 +94,7 @@ sudo ./engine start gamma ./rootfs-beta /memory_hog
 
 ---
 
-### Step 9: Stop Containers
+## Step 8: Stop Containers
 
 ```bash
 sudo ./engine stop alpha
@@ -93,7 +104,7 @@ sudo ./engine stop gamma
 
 ---
 
-### Step 10: Check Kernel Logs
+## Step 9: Kernel Logs
 
 ```bash
 sudo dmesg | tail
@@ -101,7 +112,7 @@ sudo dmesg | tail
 
 ---
 
-### Step 11: Verify Clean Teardown
+## Step 10: Clean Teardown Check
 
 ```bash
 ps aux | grep defunct
@@ -109,7 +120,7 @@ ps aux | grep defunct
 
 ---
 
-### Step 12: Unload Module
+## Step 11: Unload Module
 
 ```bash
 sudo rmmod monitor
@@ -117,239 +128,229 @@ sudo rmmod monitor
 
 ---
 
-## 3. Demo with Screenshots
+# 4. Demonstration (Screenshots)
 
-### 1. Multi-container supervision
+## 4.1 Supervisor Running
 
-Show two or more containers running under a single supervisor.
+```bash
+sudo ./engine supervisor ./rootfs-base
+```
+
+![Supervisor](screenshots/supervisor.png)
 
 ---
 
-### 2. Metadata tracking
+## 4.2 Multi-Container Execution
 
-Command:
+```bash
+sudo ./engine start alpha ./rootfs-alpha /bin/sh
+sudo ./engine start beta ./rootfs-beta /bin/sh
+```
+
+![Start](screenshots/start.png)
+
+---
+
+## 4.3 Metadata Tracking (ps)
 
 ```bash
 sudo ./engine ps
 ```
 
-Shows container IDs and PIDs.
+![PS](screenshots/ps.png)
 
 ---
 
-### 3. Bounded-buffer logging
-
-(If implemented) Show container output captured via logging.
-
----
-
-### 4. CLI and IPC
-
-Command:
+## 4.4 CLI + IPC Communication
 
 ```bash
 sudo ./engine start gamma ./rootfs-alpha /bin/sh
 ```
 
-Shows communication between CLI and supervisor.
+![CLI](screenshots/cli.png)
 
 ---
 
-### 5. Soft-limit warning
-
-Kernel logs showing memory warning event.
-
----
-
-### 6. Hard-limit enforcement
-
-Run:
+## 4.5 Stop Command
 
 ```bash
-memory_hog
+sudo ./engine stop alpha
 ```
 
-Then:
+![Stop](screenshots/stop.png)
+
+---
+
+## 4.6 Kernel Integration
 
 ```bash
 sudo dmesg | tail
 ```
 
-Shows process killed due to memory limit.
+![Kernel](screenshots/kernel.png)
 
 ---
 
-### 7. Scheduling experiment
-
-Run:
+## 4.7 Scheduling Experiment
 
 ```bash
 cpu_hog vs io_pulse
 ```
 
-Observe differences in CPU usage.
+![Scheduling](screenshots/scheduling.png)
 
 ---
 
-### 8. Clean teardown
+## 4.8 Memory Stress Behavior
 
-Command:
+```bash
+memory_hog
+```
+
+![Memory](screenshots/memory.png)
+
+---
+
+## 4.9 Clean Teardown
 
 ```bash
 ps aux | grep defunct
 ```
 
-Shows no zombie processes.
+![Cleanup](screenshots/cleanup.png)
 
 ---
 
-## 4. Engineering Analysis
+# 5. Engineering Analysis
 
-### Isolation Mechanisms
+## 5.1 Isolation Mechanisms
 
-The runtime uses Linux namespaces:
+The runtime uses Linux namespaces to isolate containers:
 
-* PID namespace isolates process IDs
-* UTS namespace isolates hostname
-* Mount namespace isolates filesystem
+* **PID namespace** → isolates process IDs
+* **UTS namespace** → isolates hostname
+* **Mount namespace** → isolates filesystem
 
-`chroot()` provides filesystem isolation.
-Containers still share:
+Additionally:
 
-* kernel
+* `chroot()` is used to restrict filesystem access
+
+However, containers still share:
+
+* the same kernel
 * CPU scheduler
 * memory subsystem
 
 ---
 
-### Supervisor and Process Lifecycle
+## 5.2 Supervisor and Process Lifecycle
 
-A long-running supervisor:
+The supervisor is a long-running process responsible for:
 
-* creates containers using `clone()`
-* tracks metadata (ID, PID)
-* handles lifecycle operations
-* uses `waitpid()` to prevent zombie processes
+* creating containers using `clone()`
+* tracking container metadata
+* handling lifecycle commands (start, stop, ps)
+* preventing zombie processes using `waitpid()`
 
----
-
-### IPC, Threads, and Synchronization
-
-Two IPC mechanisms:
-
-1. UNIX domain sockets (CLI ↔ supervisor)
-2. ioctl (user ↔ kernel module)
-
-Supervisor handles requests sequentially, avoiding race conditions.
+Each container is tracked using a linked list structure.
 
 ---
 
-### Memory Management and Enforcement
+## 5.3 IPC and Communication
 
-RSS (Resident Set Size):
+Two IPC mechanisms are used:
 
-* measures physical memory usage
-* excludes swapped memory
+### 1. UNIX Domain Sockets
 
-Soft limit:
+* CLI communicates with supervisor
+* Commands: start, stop, ps
 
-* generates warning
+### 2. ioctl System Call
 
-Hard limit:
+* User-space communicates with kernel module
+* Registers container details
 
-* kills process
-
-Kernel enforcement is necessary because:
-
-* user-space cannot reliably control memory
-* kernel has direct access to process memory
+This design separates control-plane and kernel monitoring.
 
 ---
 
-### Scheduling Behavior
+## 5.4 Memory Management and Enforcement
 
-Workloads:
+Memory usage is tracked using **RSS (Resident Set Size)**.
 
-* cpu_hog → CPU-bound
-* io_pulse → I/O-bound
+* Soft limit → warning (optional)
+* Hard limit → process termination
 
-Observations:
+Kernel module is required because:
 
-* CPU-bound tasks consume more CPU time
-* I/O-bound tasks yield CPU frequently
+* user-space cannot enforce limits reliably
+* kernel has direct access to memory statistics
 
-Linux scheduler ensures:
+The memory_hog workload demonstrates:
 
-* fairness
-* responsiveness
-* throughput
-
----
-
-## 5. Design Decisions and Tradeoffs
-
-### Namespace Isolation
-
-* Choice: namespaces + chroot
-* Tradeoff: lightweight but less secure than VMs
-* Justification: efficiency and simplicity
+* increasing allocation
+* eventual termination
 
 ---
 
-### Supervisor Design
+## 5.5 Scheduling Behavior
 
-* Choice: single supervisor process
-* Tradeoff: limited parallelism
-* Justification: easier lifecycle control
+Two workloads were used:
 
----
+### CPU-bound: cpu_hog
 
-### IPC Mechanism
+* continuously consumes CPU
+* minimal I/O
 
-* Choice: UNIX socket
-* Tradeoff: not highly scalable
-* Justification: simple and reliable
+### I/O-bound: io_pulse
 
----
+* performs periodic I/O
+* yields CPU frequently
 
-### Kernel Monitor
+### Observations:
 
-* Choice: kernel module
-* Tradeoff: complexity
-* Justification: accurate enforcement
+* CPU-bound processes dominate CPU time
+* I/O-bound processes improve responsiveness
+* Linux scheduler balances fairness and efficiency
 
 ---
 
-### Scheduling Experiments
+# 6. Design Decisions and Tradeoffs
 
-* Choice: simple workloads
-* Tradeoff: limited metrics
-* Justification: clear behavior demonstration
+| Component       | Decision            | Tradeoff                    |
+| --------------- | ------------------- | --------------------------- |
+| Isolation       | namespaces + chroot | lightweight but not full VM |
+| Supervisor      | single process      | simple but less scalable    |
+| IPC             | UNIX sockets        | simple but limited          |
+| Kernel monitor  | kernel module       | complex but accurate        |
+| Scheduling test | simple workloads    | less detailed metrics       |
 
 ---
 
-## 6. Scheduler Experiment Results
+# 7. Scheduler Experiment Results
 
 | Workload | Behavior               |
 | -------- | ---------------------- |
 | cpu_hog  | High CPU usage         |
 | io_pulse | Intermittent CPU usage |
 
-Observation:
+Conclusion:
 
-* CPU-bound dominates CPU
-* I/O-bound improves responsiveness
+* CPU-bound tasks dominate processing time
+* I/O-bound tasks allow better system responsiveness
 
 ---
 
-## Conclusion
+# 8. Conclusion
 
-This project demonstrates:
+This project successfully demonstrates:
 
-* container isolation using namespaces
-* kernel-user communication via ioctl
-* process lifecycle management
-* kernel-level memory enforcement
-* Linux scheduling behavior
+* container creation using namespaces
+* process lifecycle management via supervisor
+* kernel-user communication using ioctl
+* memory monitoring and enforcement
+* scheduling behavior in Linux
+
+The system provides a simplified but effective container runtime model.
 
 ---
